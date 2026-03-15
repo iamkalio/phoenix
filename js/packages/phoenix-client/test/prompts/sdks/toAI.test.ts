@@ -14,7 +14,10 @@ import {
 import { type PartialAIParams, toAI } from "../../../src/prompts/sdks/toAI";
 import { toSDK } from "../../../src/prompts/sdks/toSDK";
 import type { PromptVersion } from "../../../src/types/prompts";
-import { BASE_MOCK_PROMPT_VERSION } from "./data";
+import {
+  BASE_MOCK_PROMPT_VERSION,
+  BASE_MOCK_PROMPT_VERSION_TOOLS,
+} from "./data";
 
 describe("toAI type compatibility", () => {
   beforeEach(() => {
@@ -105,7 +108,7 @@ describe("toAI type compatibility", () => {
     // it will fail in pnpm type:check if the types break in the future
   });
 
-  it.skip("should handle complex message types", () => {
+  it("should handle complex message types", () => {
     const mockPrompt = {
       ...BASE_MOCK_PROMPT_VERSION,
       tools: {
@@ -259,6 +262,37 @@ describe("toAI type compatibility", () => {
         },
       },
     });
+  });
+
+  it("should convert prompt with tools and toolChoice to AI SDK params", () => {
+    const mockPrompt = {
+      ...BASE_MOCK_PROMPT_VERSION,
+      ...BASE_MOCK_PROMPT_VERSION_TOOLS,
+    } satisfies PromptVersion;
+
+    const result = toSDK({
+      sdk: "ai",
+      prompt: mockPrompt,
+    });
+
+    expect(result).not.toBeNull();
+    invariant(result, "Expected non-null result");
+
+    expect(result!.tools).toBeDefined();
+    expect(result!.tools).toHaveProperty("test");
+    expect(result!.tools!.test).toMatchObject({
+      type: "function",
+      description: "test function",
+      inputSchema: expect.objectContaining({
+        jsonSchema: expect.objectContaining({
+          type: "object",
+          properties: {},
+        }),
+      }),
+    });
+
+    expect(result!.toolChoice).toBeDefined();
+    assertType<PartialAIParams>(result);
   });
 
   it("should convert and spread into streamText without type errors", () => {
