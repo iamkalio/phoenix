@@ -72,16 +72,18 @@ export const toAI = <V extends Variables>({
       const toolsRecord: Record<string, unknown> = {};
       for (const tool of prompt.tools.tools) {
         const name = findToolDefinitionName(tool);
+        invariant(name, "Tool definition name is not valid");
         const converted = safelyConvertToolDefinitionToProvider({
           toolDefinition: tool,
           targetProvider: "VERCEL_AI",
         });
-        if (name && converted) {
-          toolsRecord[name] = converted;
-        }
+        invariant(converted, "Tool definition is not valid");
+        toolsRecord[name] = converted;
       }
       tools =
-        Object.keys(toolsRecord).length > 0 ? (toolsRecord as ToolSet) : undefined;
+        Object.keys(toolsRecord).length > 0
+          ? (toolsRecord as ToolSet)
+          : undefined;
     }
 
     let toolChoice: PartialAIParams["toolChoice"];
