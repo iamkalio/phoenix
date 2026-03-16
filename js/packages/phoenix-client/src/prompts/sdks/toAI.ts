@@ -1,7 +1,12 @@
 import type { ModelMessage, ToolChoice, ToolSet } from "ai";
 import invariant from "tiny-invariant";
 
-import { safelyConvertMessageToProvider } from "../../schemas/llm/converters";
+import {
+  safelyConvertMessageToProvider,
+  safelyConvertToolChoiceToProvider,
+  safelyConvertToolDefinitionToProvider,
+} from "../../schemas/llm/converters";
+import { findToolDefinitionName } from "../../schemas/llm/utils";
 import { formatPromptMessages } from "../../utils/formatPromptMessages";
 import type { Variables, toSDKParamsBase } from "./types";
 
@@ -62,19 +67,40 @@ export const toAI = <V extends Variables>({
       return vercelAIMessage;
     });
 
-    const tools = undefined;
-    if (prompt.tools?.tools && prompt.tools?.tools.length) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        "Phoenix client does not automatically convert tools to AI SDK tools, please manually convert them."
-      );
+    let tools: ToolSet | undefined;
+    if (prompt.tools?.tools && prompt.tools.tools.length > 0) {
+      const toolsRecord: Record<string, unknown> = {};
+      for (const tool of prompt.tools.tools) {
+        const name = findToolDefinitionName(tool);
+        invariant(name, "Tool definition name is not valid");
+        const converted = safelyConvertToolDefinitionToProvider({
+          toolDefinition: tool,
+          targetProvider: "VERCEL_AI",
+        });
+        invariant(converted, "Tool definition is not valid");
+        toolsRecord[name] = converted;
+      }
+      tools =
+        Object.keys(toolsRecord).length > 0
+          ? (toolsRecord as ToolSet)
+          : undefined;
+    }
+
+    let toolChoice: PartialAIParams["toolChoice"];
+    if (tools && prompt.tools?.tool_choice) {
+      toolChoice =
+        safelyConvertToolChoiceToProvider({
+          toolChoice: prompt.tools.tool_choice,
+          targetProvider: "VERCEL_AI",
+        }) ?? undefined;
     }
 
     // combine base and computed params
     const completionParams: PartialAIParams = {
       ...baseCompletionParams,
       messages,
-      tools,
+      ...(tools !== undefined && { tools }),
+      ...(toolChoice !== undefined && { toolChoice }),
     };
 
     return completionParams;
